@@ -22,6 +22,7 @@ type Account struct {
 	EmailAddress string    `json:"email"`
 	Password     string    `json:""`
 	CreatedAt    time.Time `json:"createdAt"`
+	Value        int
 }
 
 func (acc *Account) Print() {

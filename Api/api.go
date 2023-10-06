@@ -1,21 +1,24 @@
 package api
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"time"
 
+	database "github.com/Arch-4ng3l/Bank/Database"
 	types "github.com/Arch-4ng3l/Bank/Types"
 )
 
 type Server struct {
-	ListendingAddr string
+	Addr  string
+	Store database.Storage
 }
 
-func New(addr string) *Server {
+func New(addr string, store database.Storage) *Server {
 	return &Server{
-		addr,
+		Addr:  addr,
+		Store: store,
 	}
 }
 
@@ -24,7 +27,7 @@ func (s *Server) Run() error {
 	http.HandleFunc("/api/login", apiFuncToHttpHandler(s.handleLogin))
 	http.HandleFunc("/api/signup", apiFuncToHttpHandler(s.handleSignUp))
 
-	return http.ListenAndServe(s.ListendingAddr, nil)
+	return http.ListenAndServe(s.Addr, nil)
 }
 
 func (s *Server) handleSignUp(w http.ResponseWriter, r *http.Request) error {
@@ -34,16 +37,13 @@ func (s *Server) handleSignUp(w http.ResponseWriter, r *http.Request) error {
 		return nil
 	}
 
-	req.Print()
+	req.Password = createHash(req.Password)
 
-	account := &types.Account{
-		Username:     req.Username,
-		EmailAddress: req.EmailAddress,
-		Password:     req.Password,
-		CreatedAt:    time.Now(),
+	acc := s.Store.SignUp(req)
+
+	if acc == nil {
+		return fmt.Errorf("Invalid Sign Up Credentials")
 	}
-
-	account.Print()
 
 	return nil
 }
@@ -57,6 +57,14 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
+	encryptedPw := createHash(req.Password)
+
+	acc := s.Store.Login(req, encryptedPw)
+
+	if acc == nil {
+		return fmt.Errorf("Invalid Login Informations")
+	}
+
 	return nil
 }
 
@@ -68,4 +76,10 @@ func apiFuncToHttpHandler(f ApiFunction) http.HandlerFunc {
 			fmt.Println(err)
 		}
 	}
+}
+
+func createHash(in string) string {
+	hash := sha256.New()
+	hash.Write([]byte(in))
+	return string(hash.Sum(nil))
 }
