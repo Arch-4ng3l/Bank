@@ -34,14 +34,12 @@ func (psql *Postgres) Connect() error {
 		psql.host, psql.port, username, password, psql.dbName)
 
 	if db, err := sql.Open("postgres", connStr); err != nil {
-		fmt.Println(err)
 		return err
 	} else {
 		psql.Db = db
 	}
-	fmt.Println("HELLLO")
 
-	res, err := psql.Db.Exec(`CREATE TABLE IF NOT EXISTS accounts(
+	_, err := psql.Db.Exec(`CREATE TABLE IF NOT EXISTS accounts(
 		id SERIAL PRIMARY KEY,
 		username TEXT UNIQUE,
 		password TEXT UNIQUE,
@@ -50,19 +48,23 @@ func (psql *Postgres) Connect() error {
 		value INT8
 	)`)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
-	fmt.Println(res.RowsAffected())
 
 	return err
 }
 
 func (psql *Postgres) SignUp(req *types.SignUpRequest) *types.Account {
 	query := `INSERT INTO accounts 
-		(username, email, password, createdAt, balance)
-		VALUES($1, $2, $3)`
+		(username, email, password, created_at, value)
+		VALUES($1, $2, $3, $4, $5)`
+
 	now := time.Now()
-	psql.Db.Exec(query, req.Username, req.EmailAddress, req.Password, now, 100)
+	_, err := psql.Db.Exec(query, req.Username, req.EmailAddress, req.Password, now, 100)
+	if err != nil {
+		log.Println(err)
+		//return nil
+	}
 	acc := &types.Account{
 		Username:     req.Username,
 		EmailAddress: req.EmailAddress,
@@ -70,6 +72,7 @@ func (psql *Postgres) SignUp(req *types.SignUpRequest) *types.Account {
 		CreatedAt:    now,
 		Value:        100,
 	}
+	acc.Print()
 	return acc
 }
 
@@ -84,15 +87,39 @@ func (psql *Postgres) Login(req *types.LoginRequest, encryptedPw string) *types.
 	}
 	acc := &types.Account{}
 
-	if rows.Next() {
-		rows.Scan(&acc.Username, &acc.EmailAddress, &acc.Password, &acc.CreatedAt, &acc.Value)
+	defer rows.Close()
 
-		if acc.Password == encryptedPw {
+	if rows.Next() {
+		var id int
+		err := rows.Scan(&id, &acc.Username, &acc.Password, &acc.EmailAddress, &acc.CreatedAt, &acc.Value)
+		if err != nil {
+			log.Println(err)
 			return nil
 		}
+		fmt.Println(encryptedPw)
+		fmt.Println(acc.Password)
+		if acc.Password == encryptedPw {
+			return acc
+		}
 
-		return acc
+		return nil
 	}
 
 	return nil
+}
+
+func (psql *Postgres) Transaction(tr *types.Transaction) {
+	query := `
+		UPDATE accounts
+			SET value = value + $1
+		WHERE username = $2
+	`
+
+	if _, err := psql.Db.Exec(query, tr.Value, tr.Receiver); err != nil {
+		log.Println(err)
+	}
+	if _, err := psql.Db.Exec(query, -tr.Value, tr.Sender); err != nil {
+		log.Println(err)
+	}
+
 }

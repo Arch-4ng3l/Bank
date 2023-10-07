@@ -42,3 +42,15 @@ func (lr *LoginRequest) Print() {
 	fmt.Println("Username: " + lr.Username)
 	fmt.Println("Password: " + lr.Password)
 }
+
+type Transaction struct {
+	Receiver string `json:"receiver"`
+	Sender   string `json:"sender"`
+	Value    int8   `json:"value"`
+}
+
+func (tr *Transaction) Print() {
+	fmt.Println("Receiver: " + tr.Receiver)
+	fmt.Println("Sender: " + tr.Sender)
+	fmt.Println("Value: " + fmt.Sprint(tr.Value))
+}
